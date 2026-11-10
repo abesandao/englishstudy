@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#FFF4E6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="きょうの単語">
+  <title>きょうの単語</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <main id="view"></main>
+    <nav id="tabbar">
+      <button data-tab="home"><span class="ti"></span><span>ホーム</span></button>
+      <button data-tab="roulette"><span class="ti"></span><span>ルーレット</span></button>
+      <button data-tab="dict"><span class="ti"></span><span>辞書</span></button>
+      <button data-tab="memo"><span class="ti"></span><span>メモ</span><b class="badge" id="memoBadge"></b></button>
+      <button data-tab="test"><span class="ti"></span><span>テスト</span></button>
+    </nav>
+  </div>
+  <div id="sheet" class="sheet hidden"><div class="sheet-bg" data-action="closeSheet"></div><div class="sheet-body" id="sheetBody"></div></div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>
