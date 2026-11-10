@@ -128,9 +128,19 @@ textarea.field { min-height: 80px; resize: vertical; line-height: 1.5; }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 .task .w { font-size: 22px; font-weight: 700; }
 .task .m { font-size: 14px; margin: 4px 0 10px; }
-.task .used { background: var(--green-l); border-radius: 10px; padding: 10px 12px; font-size: 14px; line-height: 1.5; }
-.task .used mark { background: #CDE6C8; border-radius: 3px; padding: 0 2px; color: inherit; }
-.hint { font-size: 12.5px; color: var(--red); margin-top: 6px; min-height: 1em; }
+.task .m { margin: 2px 0 0; color: var(--ink); }
+.said {
+  width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid #D5C8B9; color: transparent; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; transition: .2s; align-self: flex-start; margin-top: 2px;
+}
+.said.on { background: var(--green); border-color: var(--green); color: #fff; animation: pop .3s; }
+@keyframes pop { 50% { transform: scale(1.15); } }
+.said-btn { margin-top: 12px; padding: 12px; font-size: 15px; }
+.task.done { background: #FBFAF7; }
+.task.done .w { color: var(--sub); text-decoration: line-through; text-decoration-color: #BDB0A1; text-decoration-thickness: 2px; }
+.task.done .m { color: var(--sub); }
+.said-note { margin: 10px 0 0 44px; font-size: 12.5px; color: var(--green); line-height: 1.5; }
+.said-note mark { background: #CDE6C8; border-radius: 3px; padding: 0 2px; color: inherit; }
 
 /* ---------- dictionary ---------- */
 .search { position: sticky; top: -16px; background: var(--bg); padding: 4px 0 10px; z-index: 3; }

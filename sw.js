@@ -1,5 +1,5 @@
 // オフラインでも使えるようにアプリ本体と辞書をキャッシュする
-const CACHE = 'kyotan-v3';
+const CACHE = 'kyotan-v4';
 const FILES = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'data/dict.json',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 

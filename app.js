@@ -295,18 +295,20 @@ views.roulette = () => {
   const tasks = d.words.map((w, i) => {
     const e = MAP.get(w);
     const used = d.cleared[w];
+    const when = typeof used === 'number' ? new Date(used) : null;
     return `<div class="card task ${used ? 'done' : ''}" style="animation-delay:${i * 90}ms">
-      <div class="row between">
-        <div class="row"><span class="w">${esc(w)}</span><button class="icon-btn" data-action="speak" data-w="${esc(w)}" aria-label="発音">${ic('speaker', 17)}</button></div>
-        ${used ? '<span class="chip green">クリア</span>' : e ? lvTag(e[4]) : ''}
+      <div class="row">
+        <button class="said ${used ? 'on' : ''}" data-action="useWord" data-w="${esc(w)}" aria-label="${used ? '取り消す' : '会話で使った'}">${ic('check', 20)}</button>
+        <div class="grow" style="min-width:0">
+          <div class="row" style="gap:4px"><span class="w">${esc(w)}</span>
+            <button class="icon-btn" data-action="speak" data-w="${esc(w)}" aria-label="発音">${ic('speaker', 17)}</button>
+            <span style="margin-left:auto">${e ? lvTag(e[4]) : ''}</span></div>
+          <div class="m">${esc(e ? e[1] : '')}<button class="link" data-action="word" data-w="${esc(w)}">辞書で見る</button></div>
+        </div>
       </div>
-      <div class="m">${esc(e ? e[1] : '')}
-        <button class="link" data-action="word" data-w="${esc(w)}">辞書で見る</button></div>
       ${used
-        ? `<div class="used">${highlight(used, w)}</div>`
-        : `<textarea class="field" id="s_${esc(w)}" placeholder="${esc(w)} を使った英文を書く"></textarea>
-           <div class="hint" id="h_${esc(w)}"></div>
-           <div style="text-align:right"><button class="btn small" data-action="useWord" data-w="${esc(w)}">送信</button></div>`}
+        ? `<div class="said-note">${when ? `${pad(when.getHours())}:${pad(when.getMinutes())} に会話で使った` : '使った'}${typeof used === 'string' ? `：${highlight(used, w)}` : ''}</div>`
+        : `<button class="btn said-btn" data-action="useWord" data-w="${esc(w)}">会話で使った</button>`}
     </div>`;
   }).join('');
 
@@ -316,8 +318,8 @@ views.roulette = () => {
       <div class="wheel-wrap"><canvas id="wheel" width="720" height="720"></canvas></div>
       <button class="btn" id="spinBtn" data-action="spin">回す</button>
       <p class="sub" style="text-align:center;margin-top:10px">${esc(LEVELS[S.settings.level].name)}から ${remain} 語が同時に決まります</p>` : ''}
-    ${tasks ? `<div class="section-head">英文で使う</div>
-      <p class="sub" style="margin:-4px 0 12px">単語を入れた英文（3語以上）を書くとクリア。-s / -ed / -ing などの変化形でも構いません。</p>${tasks}` : ''}
+    ${tasks ? `<div class="section-head">今日の会話で使う</div>
+      <p class="sub" style="margin:-4px 0 12px">1日のどこかで実際に口に出して使えたら「会話で使った」を押して消そう。間違えて押したら左の丸でもとに戻せます。</p>${tasks}` : ''}
     ${d.words.length && remain <= 0 && d.words.every(w => d.cleared[w]) ? `
       <div class="card" style="text-align:center">
         <div style="font-weight:700;font-size:16px;margin:4px 0 12px">今日の分はすべて完了しました</div>
@@ -410,15 +412,11 @@ function spin() {
   })(t0);
 }
 
+// 会話で使ったら押して消す（もう一度押すと取り消し）
 function useWord(w) {
-  const ta = document.getElementById('s_' + w), hint = document.getElementById('h_' + w);
-  const s = ta.value.trim();
-  const tokens = s.match(/[A-Za-z]+(?:[-'][A-Za-z]+)*/g) || [];
-  if (tokens.length < 3) { hint.textContent = '3語以上の英文で書いてみよう'; return; }
-  if (/[ぁ-んァ-ン一-龥]/.test(s)) { hint.textContent = '英語だけで書いてみよう'; return; }
-  if (!tokens.some(t => matchesWord(t, w))) { hint.textContent = `「${w}」（または変化形）が文に入っていないみたい`; return; }
   const d = today();
-  d.cleared[w] = s; save();
+  if (d.cleared[w]) { delete d.cleared[w]; save(); render(); return; }
+  d.cleared[w] = Date.now(); save();
   if (navigator.vibrate) navigator.vibrate(40);
   const all = d.words.length >= S.settings.perDay && d.words.every(x => d.cleared[x]);
   toast(all ? '今日の分はすべて完了' : `${w} をクリア`);
