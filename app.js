@@ -11,6 +11,7 @@ const LEVELS = {
   3: { name: 'Lv3 応用', desc: '大学受験・TOEIC 600〜' },
   4: { name: 'Lv4 上級', desc: 'TOEIC 800〜・英検準1級' },
   5: { name: 'Lv5 達人', desc: 'ネイティブ寄り・ちょいマイナー' },
+  6: { name: 'Lv6 マニア', desc: '辞書でしか見ない一歩手前の語' },
 };
 const WEEK_JA = ['日', '月', '火', '水', '木', '金', '土'];
 
@@ -21,6 +22,7 @@ const defaultState = () => ({
   memo: [],      // { w, m, note, t, learned }
   tests: [],     // { t, score, total }
   history: [],   // 辞書で調べた単語
+  srs: {},       // テストの記録 word: { b: 連続正解段階, due: 次に出してよい時刻 }
 });
 let S = load();
 function load() {
@@ -39,7 +41,7 @@ function save() {
 let DICT = [];
 const MAP = new Map();
 const BASE = new Map();   // ran -> run など活用形 → 原形
-const POOL = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+const POOL = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
 let dictReady = false;
 
 async function loadDict() {
@@ -48,6 +50,8 @@ async function loadDict() {
   const infl = /^([a-z]+)\s*の(過去|過去分詞|複数|現在分詞|三人称|比較級|最上級)/;
   for (const e of DICT) {
     MAP.set(e[0], e);
+    const lw = e[0].toLowerCase();
+    if (!MAP.has(lw)) MAP.set(lw, e);
     if (e[5]) POOL[e[4]].push(e);
     else {
       const m = e[2].match(infl);
@@ -431,11 +435,11 @@ function searchDict(q) {
   if (!q) return [];
   if (/^[a-z\-' ]+$/.test(q)) {
     let lo = 0, hi = DICT.length;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (DICT[mid][0] < q) lo = mid + 1; else hi = mid; }
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (DICT[mid][0].toLowerCase() < q) lo = mid + 1; else hi = mid; }
     const out = [];
-    for (let i = lo; i < DICT.length && DICT[i][0].startsWith(q) && out.length < 400; i++) out.push(DICT[i]);
+    for (let i = lo; i < DICT.length && DICT[i][0].toLowerCase().startsWith(q) && out.length < 400; i++) out.push(DICT[i]);
     if (!out.length && BASE.has(q)) { const b = MAP.get(BASE.get(q)); if (b) out.push(b); }
-    return out.sort((a, b) => (a[0] === q ? -1 : b[0] === q ? 1 : a[3] - b[3])).slice(0, 60);
+    return out.sort((a, b) => (a[0].toLowerCase() === q ? -1 : b[0].toLowerCase() === q ? 1 : a[3] - b[3])).slice(0, 60);
   }
   const out = [];
   for (const e of DICT) if (e[2].includes(q)) out.push(e);
@@ -522,6 +526,18 @@ function memoAdd(w, note = '') {
 /* =========================================================
    TEST
    ========================================================= */
+// 正解した単語はしばらく出題しない（連続正解するほど休みが長くなる）
+const REST_DAYS = [0, 3, 7, 14, 30, 60];
+function srsRecord(w, ok) {
+  const r = S.srs[w] || { b: 0, due: 0 };
+  if (ok) { r.b = Math.min(r.b + 1, REST_DAYS.length - 1); r.due = Date.now() + REST_DAYS[r.b] * 864e5; }
+  else { r.b = 0; r.due = 0; }
+  S.srs[w] = r;
+}
+const resting = w => { const r = S.srs[w]; return !!r && r.due > Date.now(); };
+const dueReview = w => { const r = S.srs[w]; return !!r && r.due <= Date.now(); };
+const restingCount = () => Object.keys(S.srs).filter(resting).length;
+
 let T = null;   // テスト中の状態
 let testOpt = { src: 'level', dir: 'en' };
 views.test = () => {
@@ -549,6 +565,7 @@ views.test = () => {
         <button class="${testOpt.dir === 'ja' ? 'on' : ''}" data-action="testDir" data-d="ja">日本語 → 英語</button>
       </div>
       <button class="btn" data-action="startTest" data-src="${testOpt.src}">スタート</button>
+      <p class="sub" style="margin:10px 0 0;line-height:1.6">正解した単語はしばらく出題されません（1回目3日、続けて正解すると7日→14日→30日→60日）。間違えた単語は次のテストで優先して出ます。いまお休み中 ${restingCount()}語</p>
     </div>
     ${last.length ? `<div class="card"><h3>最近の結果</h3>${last.map(t => {
       const d = new Date(t.t);
@@ -557,21 +574,27 @@ views.test = () => {
 };
 
 function buildTest(src) {
-  const lvPool = POOL[S.settings.level];
+  const N = 10;
+  const lv = S.settings.level;
+  const lvPool = POOL[lv].filter(e => !resting(e[0]));
   const memo = S.memo.filter(m => !m.learned).map(m => MAP.get(m.w)).filter(e => e && e[1]);
   const used = [...usedWords()].map(w => MAP.get(w)).filter(Boolean);
-  let base;
-  if (src === 'memo') base = memo;
-  else if (src === 'used') base = used;
-  else if (src === 'mix') base = [...memo, ...used];
-  else base = [];
-  base = shuffle([...new Map(base.map(e => [e[0], e])).values()]).slice(0, 10);
-  if (base.length < 10 && (src === 'level' || src === 'mix' || base.length < 4)) {
+  let src0 = src === 'memo' ? memo : src === 'used' ? used : src === 'mix' ? [...memo, ...used] : [];
+  src0 = [...new Map(src0.map(e => [e[0], e])).values()];
+  const ok = src0.filter(e => !resting(e[0]));
+  if (src0.length && !ok.length) toast('この範囲の単語はすべてお休み中です');
+  // 前に間違えた・お休みが明けた単語を優先
+  let base = [...shuffle(ok.filter(e => dueReview(e[0]))), ...shuffle(ok.filter(e => !S.srs[e[0]]))].slice(0, N);
+  if (src === 'level' || src === 'mix' || base.length < 4) {
     const have = new Set(base.map(e => e[0]));
-    const extra = shuffle(lvPool).filter(e => !have.has(e[0])).slice(0, 10 - base.length);
-    if (src !== 'level' && extra.length) toast('単語が少ないのでレベル別の単語も混ぜました');
+    const review = shuffle(lvPool.filter(e => dueReview(e[0]) && !have.has(e[0]))).slice(0, Math.ceil(N / 2));
+    review.forEach(e => have.add(e[0]));
+    const fresh = shuffle(lvPool.filter(e => !S.srs[e[0]] && !have.has(e[0])));
+    const extra = [...review, ...fresh].slice(0, N - base.length);
+    if (src !== 'level' && src !== 'mix' && extra.length) toast('単語が少ないのでレベル別の単語も混ぜました');
     base = base.concat(extra);
   }
+  base = shuffle(base);
   const qs = base.map(e => {
     const pool = POOL[e[4]].length > 50 ? POOL[e[4]] : DICT.filter(x => x[5]);
     const ds = new Set();
@@ -610,6 +633,7 @@ function answer(w) {
   q.picked = w;
   const ok = w === q.e[0];
   if (navigator.vibrate) navigator.vibrate(ok ? 25 : [60, 40, 60]);
+  srsRecord(q.e[0], ok); save();
   if (T.dir === 'en' && ok) speak(q.e[0]);
   render();
   if (ok) setTimeout(() => { if (T && T.qs[T.i] === q) nextQ(); }, 750);
@@ -664,7 +688,7 @@ function testResult() {
       <div class="item">
         <button class="icon-btn" data-action="speak" data-w="${esc(q.e[0])}" aria-label="発音">${ic('speaker', 17)}</button>
         <button class="grow" style="text-align:left" data-action="word" data-w="${esc(q.e[0])}"><div class="w">${esc(q.e[0])}</div><div class="m">${esc(q.e[1])}</div></button>
-        <span class="chip ${q.picked === q.e[0] ? 'green' : ''}">${q.picked === q.e[0] ? '正解' : '不正解'}</span>
+        <span class="chip ${q.picked === q.e[0] ? 'green' : ''}">${q.picked === q.e[0] ? `正解 · ${REST_DAYS[S.srs[q.e[0]]?.b || 1]}日お休み` : '不正解'}</span>
       </div>`).join('')}</div>`;
 }
 
